@@ -187,6 +187,10 @@ class Kuzu {
       this.db = null;
     }
   }
+
+  getFS() {
+    return this.kuzu.FS;
+  } 
 }
 
 // Singleton instance
