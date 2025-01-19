@@ -145,6 +145,7 @@
       />
       <ShellMainView
         v-show="showShell"
+        ref="shellView"
         :schema="schema"
         :navbar-height="navbarHeight"
         @reload-schema="reloadSchema"
@@ -233,6 +234,7 @@ import { useModeStore } from "../store/ModeStore";
 import { mapActions, mapStores } from 'pinia'
 import { Modal } from 'bootstrap';
 import DuckDB from '../utils/DuckDB';
+import Kuzu from '../utils/KuzuWasm';
 
 export default {
   name: "MainLayout",
@@ -261,28 +263,36 @@ export default {
     this.accessModeModal = new Modal(this.$refs.modal);
     window.addEventListener("resize", this.updateNavbarHeight);
     window.setTimeout(() => {
-        DuckDB.init();
-      }, 500);
+      DuckDB.init();
+    }, 500);
   },
   beforeUnmount() {
     this.accessModeModal.dispose();
     window.removeEventListener("resize", this.updateNavbarHeight);
   },
-  created() {
-    this.getMode();
-    Promise.all([this.getSchema(), this.getStoredSettings()]).then((res) => {
-      let storedSettings = res[1];
-      if (!storedSettings || Object.keys(storedSettings).length === 0) {
-        storedSettings = this.loadSettingsFromLocalStorage();
-      }
-      this.initSettings(this.schema, storedSettings);
-      this.$refs.schemaView.drawGraph();
-    });
+  async created() {
+    await this.getMode();
+    if (this.modeStore.isWasm) {
+      await Kuzu.init();
+    }
+    const res = await Promise.all([this.getSchema(), this.getStoredSettings()])
+    let storedSettings = res[1];
+    if (!storedSettings || Object.keys(storedSettings).length === 0) {
+      storedSettings = this.loadSettingsFromLocalStorage();
+    }
+    this.initSettings(this.schema, storedSettings);
+    this.$refs.schemaView.drawGraph();
   },
   methods: {
     async getSchema() {
-      const response = await Axios.get("/api/schema");
-      const schema = response.data;
+      let schema;
+      if (this.modeStore.isWasm) {
+        schema = await Kuzu.getSchema();
+      }
+      else {
+        const response = await Axios.get("/api/schema");
+        schema = response.data;
+      }
       this.schema = schema;
       const relGroupsMap = {};
       this.schema.relGroups.forEach((g) => {
@@ -307,6 +317,9 @@ export default {
       });
     },
     async getStoredSettings() {
+      if (this.modeStore.isWasm) {
+        return {};
+      }
       return (await Axios.get("/api/session/settings")).data;
     },
     async reloadSchema() {
@@ -392,10 +405,7 @@ export default {
     },
     toggleLoader() {
       this.hideAll();
-
-     
-        this.showLoader = true;
-      
+      this.showLoader = true;
     },
     toggleImporter(force = false) {
       if (force || !this.showLoader) {
