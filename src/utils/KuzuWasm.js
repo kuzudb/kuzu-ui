@@ -20,7 +20,7 @@ class Kuzu {
       return;
     }
     console.time("Kùzu init");
-    const db = new kuzu.Database(":memory:");
+    const db = new kuzu.Database(":memory:", 2147483648, 0, true, false, true, 16777216);
     const conn = new kuzu.Connection(db);
     const versionResult = await conn.query(`CALL db_version() RETURN *;`);
     const version = (await versionResult.getAllRows())[0][0];
@@ -190,7 +190,7 @@ class Kuzu {
 
   getFS() {
     return this.kuzu.FS;
-  } 
+  }
 }
 
 // Singleton instance
